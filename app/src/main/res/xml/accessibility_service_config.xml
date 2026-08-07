@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Event subscription is kept as narrow as the job allows.
+
+  - accessibilityEventTypes is limited to window changes and scrolls. Text and selection
+    events, which carry what the user types and reads, are never requested.
+  - packageNames restricts delivery to the apps the catalog supports. The system filters
+    before dispatch, so events from a banking app or a password manager never reach this
+    process at all. This list must stay in sync with TargetAppCatalog.
+  - canRetrieveWindowContent is required to see whether the short-video surface is showing.
+  - flagRetrieveInteractiveWindows lets the service find the application window explicitly,
+    so its own overlay cannot mask the app it is meant to be observing.
+  - isAccessibilityTool is deliberately absent: this is a wellbeing tool, not an assistive
+    technology, and claiming otherwise would be dishonest to both users and the platform.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewScrolled"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows|flagIncludeNotImportantViews"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/accessibility_service_description"
+    android:notificationTimeout="100"
+    android:packageNames="com.instagram.android,com.google.android.youtube,com.google.android.apps.youtube.kids,app.revanced.android.youtube,com.zhiliaoapp.musically,com.zhiliaoapp.musically.go,com.ss.android.ugc.trill,com.ss.android.ugc.aweme,com.facebook.katana,com.facebook.lite,com.snapchat.android"
+    android:settingsActivity="io.github.maztergd.interruptor.ui.MainActivity" />

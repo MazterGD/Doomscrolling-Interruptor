@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Compose draws the entire interface, so this theme only has to give the window a sane
+      background and no action bar. DeviceDefault follows the device's own light/dark setting.
+    -->
+    <style name="Theme.Interruptor" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@android:color/background_dark</item>
+    </style>
+</resources>
