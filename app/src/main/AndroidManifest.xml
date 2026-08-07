@@ -17,16 +17,12 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-      Not declaring INTERNET is not sufficient on its own.
+      No dependency in the current tree asks for INTERNET, so this element removes nothing
+      today. It is here as a standing instruction to the manifest merger: should any future
+      dependency declare the network permission, strip it rather than grant it.
 
-      The manifest merger folds in permissions declared by every dependency, and at least one
-      library in this app's tree (tooling support pulled in by Compose) declares INTERNET. Left
-      alone it would end up in the shipped manifest, and the app would quietly gain network
-      access nobody asked for.
-
-      tools:node="remove" strips it from the merged result. CI re-checks the merged manifest on
-      every build and fails if it ever comes back, so this guarantee cannot regress silently
-      through a dependency bump.
+      CI additionally inspects the built APK with aapt2 on every run, so the guarantee is
+      verified against the shipped artifact rather than inferred from this file.
     -->
     <uses-permission
         android:name="android.permission.INTERNET"

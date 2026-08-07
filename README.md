@@ -54,13 +54,11 @@ The strong claim first: **the app declares no `INTERNET` permission.** Android d
 sockets to a UID that lacks it, so no code in this app — or in any library it links — can
 transmit anything anywhere. This is enforced by the kernel, not promised in a policy.
 
-Simply omitting the permission turns out not to be enough, and this is worth being precise
-about. The manifest merger folds in permissions declared by *dependencies*, and a tooling
-library in the Compose dependency tree declares `INTERNET`. Left alone it would have shipped
-in the merged manifest. The app manifest therefore strips it explicitly with
-`tools:node="remove"`, and CI checks the **merged** manifest on every build — failing if the
-permission ever reappears. So the guarantee holds against dependency updates, not just against
-what this project's own manifest happens to say.
+Two things keep that true rather than merely intended. The manifest carries a
+`tools:node="remove"` instruction for `INTERNET`, so that a dependency adding the permission
+in future would have it stripped instead of granted. And CI inspects the **built APK** with
+`aapt2` on every run, failing if the permission is ever present — checking the artifact that
+actually reaches a device, rather than trusting what this project's own manifest says.
 
 Beyond that:
 

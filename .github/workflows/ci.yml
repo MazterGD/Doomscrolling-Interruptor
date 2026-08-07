@@ -77,29 +77,40 @@ jobs:
       - name: Build and test
         run: ./gradlew test lintDebug assembleDebug assembleRelease --stacktrace
 
-      # The project's central privacy claim is that this app cannot reach the network,
-      # because it never requests INTERNET. Leaving that to the source manifest alone is not
-      # enough: the manifest merger folds in permissions declared by any transitive AAR, so a
-      # dependency bump could silently grant network access. This asserts it against the
-      # *merged* manifests that actually ship in the APK.
+      # The project's central privacy claim is that this app cannot reach the network, because
+      # it never holds INTERNET. Reading the source manifest would not establish that — the
+      # merger folds in permissions declared by any dependency — and grepping the merged XML
+      # is worse still, because it matches prose inside comments as readily as real elements.
+      #
+      # So this asks the built artifact what it actually declares. aapt2 reports the permissions
+      # a device would grant, which is the only thing that matters.
       - name: Assert the app cannot reach the network
         run: |
           set -euo pipefail
-          manifests=$(find app/build -name AndroidManifest.xml -path '*merged_manifest*')
-          if [ -z "$manifests" ]; then
-            echo "::error::No merged manifest found — cannot verify the no-network guarantee"
+          aapt2=$(find "$ANDROID_HOME/build-tools" -name aapt2 -type f | sort -V | tail -1)
+          if [ -z "$aapt2" ]; then
+            echo "::error::aapt2 not found — cannot verify the no-network guarantee"
             exit 1
           fi
-          echo "Merged manifests checked:"; echo "$manifests"
-          if grep -l 'android.permission.INTERNET' $manifests; then
-            # Name the culprit rather than just failing: the merger report records which
-            # dependency contributed each element.
-            echo "--- manifest merger provenance for INTERNET ---"
-            grep -B2 -A6 -i 'permission.INTERNET' app/build/outputs/logs/manifest-merger-*-report.txt || true
-            echo "::error::INTERNET permission survived into the merged manifest. A dependency contributed it and the tools:node=\"remove\" guard in AndroidManifest.xml did not strip it. This breaks the project's core privacy guarantee."
+
+          apks=$(find app/build/outputs/apk -name '*.apk')
+          if [ -z "$apks" ]; then
+            echo "::error::No APK found — cannot verify the no-network guarantee"
             exit 1
           fi
-          echo "OK: no INTERNET permission in any merged manifest."
+
+          failed=0
+          for apk in $apks; do
+            echo "== $apk"
+            perms=$("$aapt2" dump permissions "$apk")
+            echo "${perms:-  (declares no permissions)}"
+            if printf '%s' "$perms" | grep -q 'android\.permission\.INTERNET'; then
+              echo "::error::$apk declares android.permission.INTERNET. This app must never hold the network permission — see the privacy section of the README."
+              failed=1
+            fi
+          done
+          [ "$failed" -eq 0 ]
+          echo "OK: no APK declares the INTERNET permission."
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
