@@ -54,6 +54,11 @@ The strong claim first: **the app declares no `INTERNET` permission.** Android d
 sockets to a UID that lacks it, so no code in this app — or in any library it links — can
 transmit anything anywhere. This is enforced by the kernel, not promised in a policy.
 
+CI asserts it on every push, against the *merged* manifest rather than the source one — the
+manifest merger folds in permissions declared by any transitive dependency, so a library
+update could otherwise grant network access without anyone editing a manifest. If that ever
+happens the build fails.
+
 Beyond that:
 
 - **Node text is never read.** Detecting a Reels feed is a structural question, so the app

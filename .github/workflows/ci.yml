@@ -75,6 +75,26 @@ jobs:
       - name: Build and test
         run: ./gradlew test lintDebug assembleDebug assembleRelease --stacktrace
 
+      # The project's central privacy claim is that this app cannot reach the network,
+      # because it never requests INTERNET. Leaving that to the source manifest alone is not
+      # enough: the manifest merger folds in permissions declared by any transitive AAR, so a
+      # dependency bump could silently grant network access. This asserts it against the
+      # *merged* manifests that actually ship in the APK.
+      - name: Assert the app cannot reach the network
+        run: |
+          set -euo pipefail
+          manifests=$(find app/build -name AndroidManifest.xml -path '*merged_manifest*')
+          if [ -z "$manifests" ]; then
+            echo "::error::No merged manifest found — cannot verify the no-network guarantee"
+            exit 1
+          fi
+          echo "Checking:"; echo "$manifests"
+          if grep -l 'android.permission.INTERNET' $manifests; then
+            echo "::error::INTERNET permission present in the merged manifest. A dependency, or a change to AndroidManifest.xml, has granted this app network access and broken its core privacy guarantee."
+            exit 1
+          fi
+          echo "OK: no INTERNET permission in any merged manifest."
+
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
