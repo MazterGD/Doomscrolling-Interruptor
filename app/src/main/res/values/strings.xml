@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Interruptor</string>
+
+    <!-- Accessibility service registration -->
+    <string name="accessibility_service_label">Doomscrolling Interruptor</string>
+    <string name="accessibility_service_description">Watches only for the short-video feeds of the apps you choose, so it can pause them after a long scrolling session. It reads the structure of those screens to tell a Reels or Shorts feed apart from the rest of the app. It never reads text, captions or messages, and the app has no internet permission, so nothing it observes can leave your device.</string>
+
+    <!-- Block overlay -->
+    <string name="block_heading">THAT WAS A LONG SCROLL</string>
+    <string name="block_title">%1$s is paused</string>
+    <string name="block_timer_caption">until short videos unlock</string>
+    <string name="block_explainer">Messages, search, and the rest of the app still work. So does every other app on your phone.\n\nPress home whenever you like — this screen will be waiting if you come back.</string>
+
+    <!-- Countdown overlay -->
+    <string name="countdown_message">%1$s pauses in %2$ds</string>
+
+    <!-- Main screen -->
+    <string name="home_title">Doomscrolling Interruptor</string>
+    <string name="home_subtitle">Short-video feeds get paused after a long scroll. Nothing else is limited.</string>
+
+    <string name="service_enabled">Protection is active</string>
+    <string name="service_enabled_detail">Interruptor is watching the apps selected below.</string>
+    <string name="service_disabled">Protection is off</string>
+    <string name="service_disabled_detail">Interruptor needs the accessibility permission to tell a short-video feed apart from the rest of an app.</string>
+    <string name="open_accessibility_settings">Open accessibility settings</string>
+
+    <string name="apps_section">Apps to watch</string>
+    <string name="rules_section">How it works</string>
+
+    <string name="rule_threshold">Scroll a short-video feed for %1$d minutes and it pauses.</string>
+    <string name="rule_countdown">You get a %1$d second warning first.</string>
+    <string name="rule_cooldown">That feed stays paused for %1$d minutes.</string>
+    <string name="rule_idle">Time only counts while you are actually swiping — watching one long video does not count.</string>
+    <string name="rule_scope">Only the short-video feed is paused. Messages and every other app keep working.</string>
+
+    <string name="privacy_section">Privacy</string>
+    <string name="privacy_body">This app has no internet permission at all, so nothing it sees can be sent anywhere. It reads only the structure of the screen — never text, captions, or messages. Everything it stores stays on this device and is excluded from backups.</string>
+
+    <string name="source_note">Free and open source, licensed GPL-3.0.</string>
+</resources>
