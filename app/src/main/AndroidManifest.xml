@@ -13,7 +13,8 @@
   Nor is SYSTEM_ALERT_WINDOW declared: the blocking overlay uses TYPE_ACCESSIBILITY_OVERLAY,
   which an accessibility service may use without the "draw over other apps" grant.
 -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:allowBackup="false"
@@ -36,11 +37,21 @@
             </intent-filter>
         </activity>
 
+        <!--
+          exported="false" is correct here: the platform's accessibility manager is what binds
+          this service, gated by BIND_ACCESSIBILITY_SERVICE, so no other app needs access.
+
+          The AccessibilityPolicy lint check warns that the accessibility APIs are being used
+          for something other than assistive technology. That is accurate, and it is the
+          project's deliberate design — see README and docs/DETECTION.md for what the service
+          reads and why. It is suppressed here rather than worked around.
+        -->
         <service
             android:name=".service.DoomscrollAccessibilityService"
             android:exported="false"
             android:label="@string/accessibility_service_label"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            tools:ignore="AccessibilityPolicy">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>

@@ -13,9 +13,16 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  GRADLE_OPTS: -Dorg.gradle.console=plain -Dorg.gradle.welcome=never
+
 jobs:
-  build:
+  # Runs first and on its own: the interrupt engine and the detection matcher are pure JVM,
+  # so they need no Android SDK and fail in seconds rather than after a toolchain download.
+  core:
+    name: Core logic tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -28,22 +35,45 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # The Android SDK is preinstalled on ubuntu-latest runners; this pins the components
-      # the build needs rather than relying on whatever the image happens to ship.
+      - name: Test core modules
+        run: ./gradlew :core:model:build :core:domain:test
+
+      - name: Upload core test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-test-report
+          path: core/domain/build/reports/tests/**
+          if-no-files-found: ignore
+
+  android:
+    name: Android build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Unit tests
-        run: ./gradlew --no-daemon test
+      # Installed explicitly so the versions are pinned and visible, rather than being
+      # auto-downloaded mid-build where a failure is harder to attribute.
+      - name: Install SDK packages
+        run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Lint
-        run: ./gradlew --no-daemon lintDebug
-
-      - name: Assemble debug APK
-        run: ./gradlew --no-daemon assembleDebug
-
-      - name: Assemble release APK
-        run: ./gradlew --no-daemon assembleRelease
+      # One invocation, one configuration pass, one daemon. Splitting these across separate
+      # gradlew calls costs a cold JVM start and a full re-configuration each time.
+      - name: Build and test
+        run: ./gradlew test lintDebug assembleDebug assembleRelease --stacktrace
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
@@ -54,11 +84,11 @@ jobs:
             app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
-      - name: Upload test and lint reports
+      - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: reports
+          name: android-reports
           path: |
             **/build/reports/tests/**
             **/build/reports/lint-results-*.*
