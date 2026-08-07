@@ -20,9 +20,9 @@ import android.content.Context
 import android.os.Build
 import android.view.KeyEvent
 import android.view.MotionEvent
-import android.view.OnBackInvokedCallback
-import android.view.OnBackInvokedDispatcher
 import android.widget.FrameLayout
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
 import androidx.annotation.RequiresApi
 
 /**
