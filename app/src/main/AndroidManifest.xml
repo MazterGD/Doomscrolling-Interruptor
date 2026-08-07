@@ -16,6 +16,22 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!--
+      Not declaring INTERNET is not sufficient on its own.
+
+      The manifest merger folds in permissions declared by every dependency, and at least one
+      library in this app's tree (tooling support pulled in by Compose) declares INTERNET. Left
+      alone it would end up in the shipped manifest, and the app would quietly gain network
+      access nobody asked for.
+
+      tools:node="remove" strips it from the merged result. CI re-checks the merged manifest on
+      every build and fails if it ever comes back, so this guarantee cannot regress silently
+      through a dependency bump.
+    -->
+    <uses-permission
+        android:name="android.permission.INTERNET"
+        tools:node="remove" />
+
     <application
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"

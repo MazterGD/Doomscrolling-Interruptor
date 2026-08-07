@@ -1,8 +1,10 @@
 name: CI
 
 on:
+  # Branches with an open pull request are covered by the pull_request trigger; listing them
+  # here as well would run every build twice.
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -88,9 +90,13 @@ jobs:
             echo "::error::No merged manifest found — cannot verify the no-network guarantee"
             exit 1
           fi
-          echo "Checking:"; echo "$manifests"
+          echo "Merged manifests checked:"; echo "$manifests"
           if grep -l 'android.permission.INTERNET' $manifests; then
-            echo "::error::INTERNET permission present in the merged manifest. A dependency, or a change to AndroidManifest.xml, has granted this app network access and broken its core privacy guarantee."
+            # Name the culprit rather than just failing: the merger report records which
+            # dependency contributed each element.
+            echo "--- manifest merger provenance for INTERNET ---"
+            grep -B2 -A6 -i 'permission.INTERNET' app/build/outputs/logs/manifest-merger-*-report.txt || true
+            echo "::error::INTERNET permission survived into the merged manifest. A dependency contributed it and the tools:node=\"remove\" guard in AndroidManifest.xml did not strip it. This breaks the project's core privacy guarantee."
             exit 1
           fi
           echo "OK: no INTERNET permission in any merged manifest."
