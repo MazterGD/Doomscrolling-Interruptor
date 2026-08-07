@@ -72,6 +72,9 @@ class DoomscrollAccessibilityService : AccessibilityService() {
     private var lastScanUptimeMs = 0L
     private var scanScheduled = false
 
+    /** Foreground package as of the last full scan, used to detect app switches on the tick path. */
+    private var lastScannedPackage: String? = null
+
     private val tickRunnable = Runnable { onTick() }
     private val coalescedScanRunnable = Runnable {
         scanScheduled = false
@@ -171,7 +174,9 @@ class DoomscrollAccessibilityService : AccessibilityService() {
         lastScanUptimeMs = SystemClock.uptimeMillis()
 
         val root = activeApplicationRoot()
-        val app = root?.packageName?.toString()?.let(TargetAppCatalog::forPackage)
+        val foregroundPackage = root?.packageName?.toString()
+        val app = foregroundPackage?.let(TargetAppCatalog::forPackage)
+        lastScannedPackage = foregroundPackage
 
         val state = if (root == null || app == null) {
             engine.onSurface(app = null, showingReels = false)
@@ -236,8 +241,16 @@ class DoomscrollAccessibilityService : AccessibilityService() {
         if (!cooldownStore.isHydrated()) return
 
         val foregroundPackage = activeApplicationRoot()?.packageName?.toString()
-        val app: TargetApp? = foregroundPackage?.let(TargetAppCatalog::forPackage)
 
+        // A different app is in front than the one the engine is timing. Which surface of it
+        // is showing is unknown, so fall back to the accurate path rather than crediting the
+        // previous app for time spent here.
+        if (foregroundPackage != lastScannedPackage) {
+            scanSurface()
+            return
+        }
+
+        val app: TargetApp? = foregroundPackage?.let(TargetAppCatalog::forPackage)
         val state = if (app == null) engine.onSurface(app = null, showingReels = false) else engine.onTick()
         render(state)
     }
