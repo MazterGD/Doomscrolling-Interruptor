@@ -46,6 +46,17 @@ those requires device-owner privileges, and an app that could trap you on one sc
 a worse thing to install than the habit it was meant to fix. Pressing home is the intended
 exit — and if you come back to the feed, the block is still there, counting down.
 
+### Seeing where you stand
+
+Each app in the list carries a live countdown: how much scrolling it has left before its feed
+pauses, or — while a block is in force — how long until it unlocks. The scrolling figure is
+not wall-clock time and holds still when you are not swiping, which is the same rule the
+interrupt itself runs on.
+
+Both numbers are read from the running engine rather than recalculated for display, so what
+the screen promises and what the block actually does cannot drift apart. With the
+accessibility service off, nothing is being timed and no countdown is shown.
+
 ---
 
 ## Privacy
@@ -165,7 +176,7 @@ all, point Gradle at a settings file that includes only the core modules.
 > [Why Play Protect blocks this](#why-play-protect-blocks-this).
 
 ```bash
-adb install interruptor-1.0.0.apk
+adb install interruptor-1.1.0.apk
 ```
 
 Then:
@@ -176,8 +187,8 @@ Then:
 To verify what you downloaded before installing it:
 
 ```bash
-sha256sum -c interruptor-1.0.0.apk.sha256
-apksigner verify --print-certs interruptor-1.0.0.apk
+sha256sum -c interruptor-1.1.0.apk.sha256
+apksigner verify --print-certs interruptor-1.1.0.apk
 ```
 
 The signing certificate must be
