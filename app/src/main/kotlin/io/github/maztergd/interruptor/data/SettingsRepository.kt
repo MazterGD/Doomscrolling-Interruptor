@@ -17,6 +17,7 @@ package io.github.maztergd.interruptor.data
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -26,6 +27,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import io.github.maztergd.interruptor.core.model.InterruptPolicy
 import io.github.maztergd.interruptor.core.model.InterruptorSettings
 import io.github.maztergd.interruptor.core.model.TargetAppCatalog
+import io.github.maztergd.interruptor.core.model.TimingRule
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -62,20 +64,42 @@ class SettingsRepository(private val context: Context) {
      * [InterruptPolicy] validates itself, so an incoherent combination cannot be written.
      */
     suspend fun setPolicy(policy: InterruptPolicy) {
+        context.settingsDataStore.edit { it.writePolicy(policy) }
+    }
+
+    /**
+     * Moves one timing rule to [valueMs], snapped to the values that rule offers.
+     *
+     * Read-modify-write inside a single [edit], rather than taking a policy from the caller,
+     * for two reasons. A slider dragged quickly commits several times in a row, and each
+     * change has to apply to what is actually stored rather than to whatever the screen last
+     * observed. And [TimingRule.applyTo] may have to move a second field to keep the policy
+     * coherent — that decision belongs next to the write, not to the screen.
+     */
+    suspend fun setTimingRule(rule: TimingRule, valueMs: Long) {
         context.settingsDataStore.edit { prefs ->
-            prefs[KEY_THRESHOLD_MS] = policy.doomscrollThresholdMs
-            prefs[KEY_COUNTDOWN_MS] = policy.countdownMs
-            prefs[KEY_COOLDOWN_MS] = policy.cooldownMs
-            prefs[KEY_SCROLL_IDLE_MS] = policy.scrollIdleTimeoutMs
-            prefs[KEY_GRACE_MS] = policy.sessionGraceMs
+            prefs.writePolicy(rule.applyTo(prefs.toPolicy(), valueMs))
         }
     }
 
-    private fun Preferences.toSettings(): InterruptorSettings {
+    /** Restores the shipped timing rules. The user's app selection is left alone. */
+    suspend fun resetPolicy() {
+        context.settingsDataStore.edit { it.writePolicy(InterruptPolicy.DEFAULT) }
+    }
+
+    private fun MutablePreferences.writePolicy(policy: InterruptPolicy) {
+        this[KEY_THRESHOLD_MS] = policy.doomscrollThresholdMs
+        this[KEY_COUNTDOWN_MS] = policy.countdownMs
+        this[KEY_COOLDOWN_MS] = policy.cooldownMs
+        this[KEY_SCROLL_IDLE_MS] = policy.scrollIdleTimeoutMs
+        this[KEY_GRACE_MS] = policy.sessionGraceMs
+    }
+
+    private fun Preferences.toPolicy(): InterruptPolicy {
         val default = InterruptPolicy.DEFAULT
         // A stored policy that no longer validates — for example after a downgrade wrote
         // fields this build rejects — must not brick the service. Fall back to the default.
-        val policy = runCatching {
+        return runCatching {
             InterruptPolicy(
                 doomscrollThresholdMs = this[KEY_THRESHOLD_MS] ?: default.doomscrollThresholdMs,
                 countdownMs = this[KEY_COUNTDOWN_MS] ?: default.countdownMs,
@@ -84,12 +108,12 @@ class SettingsRepository(private val context: Context) {
                 sessionGraceMs = this[KEY_GRACE_MS] ?: default.sessionGraceMs,
             )
         }.getOrDefault(default)
-
-        return InterruptorSettings(
-            enabledAppIds = this[KEY_ENABLED_APPS] ?: TargetAppCatalog.defaultEnabledIds,
-            policy = policy,
-        )
     }
+
+    private fun Preferences.toSettings(): InterruptorSettings = InterruptorSettings(
+        enabledAppIds = this[KEY_ENABLED_APPS] ?: TargetAppCatalog.defaultEnabledIds,
+        policy = toPolicy(),
+    )
 
     private companion object {
         val KEY_ENABLED_APPS = stringSetPreferencesKey("enabled_app_ids")

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Interruptor</string>
 
     <!-- Accessibility service registration -->
@@ -32,12 +32,37 @@
     <string name="app_status_paused">Paused · %1$s left</string>
     <string name="app_status_not_watched">Not watched</string>
 
+    <!-- Adjustable timing rules -->
+    <string name="timing_section">Timing</string>
+
+    <string name="timing_trigger_title">Pause after</string>
+    <string name="timing_trigger_detail">How much active scrolling a feed allows before it pauses.</string>
+
+    <string name="timing_warning_title">Warning before pausing</string>
+    <string name="timing_warning_detail">A countdown appears this long before the pause lands. It has to fit inside the time above, so shortening that can shorten this too.</string>
+
+    <string name="timing_block_title">Stay paused for</string>
+    <string name="timing_block_detail">How long the feed stays paused. A pause already running keeps the length it started with.</string>
+
+    <string name="timing_active_window_title">Still counts as scrolling</string>
+    <string name="timing_active_window_detail">How long after a swipe still counts towards the timer. Raise it to keep counting through longer videos; lower it so only quick swiping adds up.</string>
+
+    <string name="timing_reset">Reset timing to defaults</string>
+
+    <!--
+        Durations, as shown against each timing rule. Abbreviated units keep the value legible
+        beside a slider, and none of them inflect in English, so lint's suggestion of a plural
+        is declined here rather than obeyed. A translation that does inflect should replace
+        these with plurals in its own values-xx.
+    -->
+    <string name="duration_seconds" tools:ignore="PluralsCandidate">%1$d sec</string>
+    <string name="duration_minutes">%1$d min</string>
+    <string name="duration_hours">%1$d hr</string>
+    <string name="duration_hours_minutes">%1$d hr %2$d min</string>
+
     <string name="rules_section">How it works</string>
 
-    <string name="rule_threshold">Scroll a short-video feed for %1$d minutes and it pauses.</string>
-    <string name="rule_countdown">You get a %1$d second warning first.</string>
-    <string name="rule_cooldown">That feed stays paused for %1$d minutes.</string>
-    <string name="rule_idle">Time only counts while you are actually swiping — watching one long video does not count.</string>
+    <string name="rule_grace">Ducking out of a feed for a moment keeps your progress, so bouncing away and back does not reset the timer. Stay off it for a couple of minutes and the session starts over.</string>
     <string name="rule_scope">Only the short-video feed is paused. Messages and every other app keep working.</string>
 
     <string name="privacy_section">Privacy</string>
