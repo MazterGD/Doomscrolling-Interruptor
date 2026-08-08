@@ -10,6 +10,19 @@ captures/
 .cxx
 *.apk
 *.aab
+
+# Signing material. The production key must never enter the repository: anyone holding it
+# can publish an update that existing installs will accept as genuine. Both conventional
+# keystore extensions are listed, because matching only one is a trap.
 *.keystore
+*.jks
+*.p12
 !debug.keystore
 keystore.properties
+# Base64 of the keystore, produced when loading the CI secret. This is the signing key in
+# plain text — it must be deleted after use, and must never be committed if it lingers.
+keystore.b64
+*.b64
+
+# Eclipse/VS Code Java tooling output
+bin/

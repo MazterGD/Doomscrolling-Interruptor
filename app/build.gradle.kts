@@ -34,6 +34,15 @@ android {
                 storePassword = keystoreProperties.getProperty("storePassword")
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")
+
+                // v1 (JAR signing) is unnecessary at minSdk 26 and only slows installs.
+                // v2 is what every supported device verifies against.
+                // v3 additionally records a rotation-capable signing lineage. Without it,
+                // a compromised key could never be replaced: users would have to uninstall,
+                // losing their settings, before they could accept a differently signed build.
+                enableV1Signing = false
+                enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }

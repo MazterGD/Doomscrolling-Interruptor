@@ -1,0 +1,169 @@
+name: Release
+
+# Pushing a v* tag builds, signs, verifies and publishes the APK. Releases are therefore
+# reproducible from a tag alone — no step depends on anyone's laptop being set up correctly.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # required to create the GitHub Release
+
+jobs:
+  release:
+    name: Build and publish signed APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+
+      # Refuse to publish a tag that disagrees with the version in the build file. Shipping
+      # v1.2.0 built from versionName 1.1.0 produces an artifact nobody can trace back.
+      - name: Check the tag matches versionName
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          # POSIX sed rather than grep -P: the latter is unavailable under some locales.
+          declared=$(sed -n 's/.*versionName[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
+            app/build.gradle.kts | head -1)
+          if [ -z "$declared" ]; then
+            echo "::error::Could not read versionName from app/build.gradle.kts"
+            exit 1
+          fi
+          echo "tag=$tag  versionName=$declared"
+          if [ "$tag" != "$declared" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match versionName $declared in app/build.gradle.kts. Bump the version and re-tag."
+            exit 1
+          fi
+
+      # The keystore never exists in the repository. It is reconstituted here from a secret
+      # and lives only for the duration of this job.
+      - name: Restore signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "::error::KEYSTORE_BASE64 secret is not set. See docs/RELEASING.md."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          cat > keystore.properties <<EOF
+          storeFile=$RUNNER_TEMP/release.keystore
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+
+      - name: Build signed release APK
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Assert the app cannot reach the network
+        run: |
+          set -euo pipefail
+          aapt2=$(find "$ANDROID_HOME/build-tools" -name aapt2 -type f | sort -V | tail -1)
+          apk=app/build/outputs/apk/release/app-release.apk
+          perms=$("$aapt2" dump permissions "$apk")
+          echo "${perms:-  (declares no permissions)}"
+          if printf '%s' "$perms" | grep -q 'android\.permission\.INTERNET'; then
+            echo "::error::Release APK declares INTERNET. Refusing to publish."
+            exit 1
+          fi
+
+      # Proves the artifact was signed by the project's key and not some other one. The
+      # fingerprint is published in the README so users can run the same check themselves.
+      - name: Verify the signing certificate
+        run: |
+          set -euo pipefail
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          apk=app/build/outputs/apk/release/app-release.apk
+          "$apksigner" verify --verbose --print-certs "$apk"
+          got=$("$apksigner" verify --print-certs "$apk" \
+            | grep -i 'certificate SHA-256 digest' | head -1 | awk '{print $NF}' | tr 'A-Z' 'a-z')
+          expected=23fffac9366d22d6cf33da8862fd3e6b046a8609b1508ece2a0dea80b0ddb84f
+          if [ "$got" != "$expected" ]; then
+            echo "::error::APK signed by an unexpected certificate. got=$got expected=$expected"
+            exit 1
+          fi
+          echo "OK: signed by the expected release key."
+
+      - name: Stage artifact and checksum
+        id: stage
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          out="interruptor-${version}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$out"
+          sha256sum "$out" > "$out.sha256"
+          echo "apk=$out" >> "$GITHUB_OUTPUT"
+          cat "$out.sha256"
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APK: ${{ steps.stage.outputs.apk }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            --notes-file <(cat <<'NOTES'
+
+          ---
+
+          ### Installing
+
+          Android will refuse this app from a browser or file manager. That is Google Play
+          Protect blocking any sideloaded app that declares an accessibility service — the
+          permission this app needs to tell a Reels feed apart from the rest of an app. It is
+          not specific to this build. Install over USB instead:
+
+          ```
+          adb install interruptor-VERSION.apk
+          ```
+
+          See the README for the full explanation and alternatives.
+
+          ### Verifying this download
+
+          ```
+          sha256sum -c interruptor-VERSION.apk.sha256
+          apksigner verify --print-certs interruptor-VERSION.apk
+          ```
+
+          The signing certificate SHA-256 must be:
+          `23:FF:FA:C9:36:6D:22:D6:CF:33:DA:88:62:FD:3E:6B:04:6A:86:09:B1:50:8E:CE:2A:0D:EA:80:B0:DD:B8:4F`
+          NOTES
+          ) \
+            "$APK" "$APK.sha256"
+
+      - name: Upload artifact (workflow_dispatch runs)
+        if: "!startsWith(github.ref, 'refs/tags/v')"
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: |
+            *.apk
+            *.apk.sha256
+          if-no-files-found: error
