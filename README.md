@@ -143,6 +143,12 @@ keyAlias=…
 keyPassword=…
 ```
 
+Without it the build still succeeds, producing `app-release-unsigned.apk`, so a fresh clone
+compiles without needing secrets.
+
+Releases are cut by pushing a `v*` tag: CI builds, signs, verifies and publishes the APK.
+**[docs/RELEASING.md](docs/RELEASING.md)** has the full procedure and the one-time secret setup.
+
 ### Running the core tests without the Android SDK
 
 The `core` modules are plain JVM projects, so `./gradlew :core:domain:test` needs no SDK — but
@@ -153,13 +159,72 @@ all, point Gradle at a settings file that includes only the core modules.
 
 ## Installing
 
-1. Install the APK from Releases.
-2. Open the app and grant the accessibility permission.
-3. Choose which apps to watch.
+> **Tapping the APK in a browser or file manager will not work.** Google Play Protect blocks
+> *any* sideloaded app that declares an accessibility service. Use `adb`, below. This is not
+> a bug in this app and there is no build setting that avoids it — see
+> [Why Play Protect blocks this](#why-play-protect-blocks-this).
 
-Android will warn you that the service can "observe your actions". That warning is the same
-for every accessibility service and it is not wrong — that is precisely why this project is
-open source, why the detection logic is documented, and why the app cannot reach the network.
+```bash
+adb install interruptor-1.0.0.apk
+```
+
+Then:
+
+1. Open the app and grant the accessibility permission.
+2. Choose which apps to watch.
+
+To verify what you downloaded before installing it:
+
+```bash
+sha256sum -c interruptor-1.0.0.apk.sha256
+apksigner verify --print-certs interruptor-1.0.0.apk
+```
+
+The signing certificate must be
+`23:FF:FA:C9:36:6D:22:D6:CF:33:DA:88:62:FD:3E:6B:04:6A:86:09:B1:50:8E:CE:2A:0D:EA:80:B0:DD:B8:4F`.
+Every release is built and signed by CI from a tag, and the build refuses to publish an APK
+signed by any other key or carrying a network permission.
+
+Android will separately warn that the service can "observe your actions". That warning is the
+same for every accessibility service and it is not wrong — which is precisely why this project
+is open source, why the detection logic is documented, and why the app cannot reach the network.
+
+### Why Play Protect blocks this
+
+Google blocks sideloaded installs of apps declaring `ACCESSIBILITY`, `READ_SMS`, `RECEIVE_SMS`
+or notification-listener access, because those permissions are the ones banking-fraud malware
+reaches for. The block applies to apps arriving from a **browser, messaging app or file
+manager**. It does not apply to `adb`.
+
+This app needs accessibility for the reason the whole project exists: it is the only API that
+reports *which screen of an app* is showing, so it can tell a Reels feed from a DM thread.
+Usage-stats APIs only report that Instagram is open, which would limit the whole app.
+
+Google's stated remedy for developers is to minimise permissions, and there is nothing left
+here to minimise. `aapt2 dump permissions` on the release APK reports exactly one entry:
+
+```
+io.github.maztergd.interruptor.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+```
+
+That is not a device capability. It is a signature-level permission AndroidX declares over the
+app's *own* package so that broadcast receivers it registers at runtime are not exported to
+other apps — it grants nothing, to anyone, and cannot be held by another app. No system
+permission of any kind is requested, and CI fails the build if `INTERNET` ever appears.
+
+So the warning cannot be engineered away by dropping permissions; it is triggered by the
+accessibility service declaration alone.
+
+If `adb` is not an option, the alternatives are, in descending order of preference:
+
+| | |
+|---|---|
+| **Build it yourself** | `./gradlew assembleDebug` and install over USB. Trust nothing. |
+| **Temporarily disable the scan** | Play Store → profile → Play Protect → ⚙ → turn off "Scan apps with Play Protect", install, **turn it back on**. |
+| **"Install anyway"** | Some regions still offer this under "More details" on the warning. Many now hard-block with no such option. |
+
+Disabling Play Protect lowers your defences against exactly the class of malware this warning
+exists to catch. Prefer `adb`, and turn the scan back on immediately if you do disable it.
 
 ### Known limitations
 
