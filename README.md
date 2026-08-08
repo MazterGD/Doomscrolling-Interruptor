@@ -13,12 +13,12 @@ Free software, GPL-3.0. No accounts, no analytics, and **no internet permission 
 
 ## What it does
 
-| | |
-|---|---|
-| **Trigger** | 10 minutes of *active scrolling* on a short-video feed |
-| **Warning** | a 10-second countdown appears before the block |
-| **Block** | full-screen, no exit or back button, for 5 minutes |
-| **Scope** | that one app's short-video feed — nothing else |
+| | Default | Adjustable to |
+|---|---|---|
+| **Trigger** | 10 minutes of *active scrolling* on a short-video feed | 1 minute – 1½ hours |
+| **Warning** | a 10-second countdown appears before the block | 5 – 60 seconds |
+| **Block** | full-screen, no exit or back button, for 5 minutes | 1 – 60 minutes |
+| **Scope** | that one app's short-video feed — nothing else | — |
 
 Supported out of the box: Instagram Reels, YouTube Shorts, TikTok, Facebook Reels,
 Facebook Lite, Snapchat Spotlight.
@@ -28,6 +28,10 @@ Facebook Lite, Snapchat Spotlight.
 Time accrues only while you are actually swiping. Stop to watch one long video and the timer
 stops with you, twenty seconds after your last swipe. Watching is not the problem the app is
 trying to solve; the compulsive swipe is.
+
+That twenty seconds is itself adjustable, anywhere from 5 seconds to 2 minutes. Raise it if
+you mostly watch minute-long videos and the timer keeps stopping when you feel you are still
+scrolling; lower it if you want only rapid swiping to count against you.
 
 ### Why leaving the feed does not reset the timer
 
@@ -56,6 +60,20 @@ interrupt itself runs on.
 Both numbers are read from the running engine rather than recalculated for display, so what
 the screen promises and what the block actually does cannot drift apart. With the
 accessibility service off, nothing is being timed and no countdown is shown.
+
+### Setting your own thresholds
+
+The four timings above are sliders on the settings screen, and a change takes effect on the
+running service immediately — no restart, and a session already in progress keeps the time it
+has accrued. Each slider offers a handful of round values rather than every whole minute,
+because the difference between an eleven and a twelve minute allowance is not a decision worth
+making. "Reset timing to defaults" puts all four back without touching which apps you watch.
+
+Two things a change deliberately cannot do. Shortening the block does not release one that is
+already running: the deadline is fixed when the block lands, so the settings screen is not a
+way out of a pause you are currently serving. And shortening the trigger below your current
+warning shortens the warning to match, since a countdown cannot start before the session it
+is counting down.
 
 ---
 

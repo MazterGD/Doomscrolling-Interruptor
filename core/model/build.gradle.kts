@@ -17,3 +17,13 @@ kotlin {
         allWarningsAsErrors.set(true)
     }
 }
+
+dependencies {
+    testImplementation(libs.junit)
+}
+
+tasks.withType<Test>().configureEach {
+    testLogging {
+        events("passed", "skipped", "failed")
+    }
+}

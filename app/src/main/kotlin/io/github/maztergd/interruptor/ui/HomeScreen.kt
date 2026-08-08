@@ -15,6 +15,7 @@
  */
 package io.github.maztergd.interruptor.ui
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -32,9 +33,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,9 +53,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import io.github.maztergd.interruptor.R
 import io.github.maztergd.interruptor.core.model.AppTimeLeft
+import io.github.maztergd.interruptor.core.model.InterruptPolicy
 import io.github.maztergd.interruptor.core.model.TargetApp
 import io.github.maztergd.interruptor.core.model.TargetAppCatalog
+import io.github.maztergd.interruptor.core.model.TimingRule
 import java.util.Locale
+import kotlin.math.roundToInt
 
 @Composable
 fun HomeScreen(viewModel: HomeViewModel) {
@@ -109,16 +116,28 @@ fun HomeScreen(viewModel: HomeViewModel) {
             )
         }
 
+        item { SectionHeader(stringResource(R.string.timing_section)) }
+
+        items(TimingRule.entries, key = TimingRule::name) { rule ->
+            TimingRuleCard(
+                rule = rule,
+                policy = settings.policy,
+                onChange = { viewModel.setTimingRule(rule, it) },
+            )
+        }
+
+        item {
+            TextButton(onClick = viewModel::resetTiming) {
+                Text(stringResource(R.string.timing_reset))
+            }
+        }
+
         item { SectionHeader(stringResource(R.string.rules_section)) }
 
         item {
-            val policy = settings.policy
             InfoCard(
                 lines = listOf(
-                    stringResource(R.string.rule_threshold, policy.doomscrollThresholdMs / 60_000),
-                    stringResource(R.string.rule_countdown, policy.countdownMs / 1_000),
-                    stringResource(R.string.rule_cooldown, policy.cooldownMs / 60_000),
-                    stringResource(R.string.rule_idle),
+                    stringResource(R.string.rule_grace),
                     stringResource(R.string.rule_scope),
                 ),
             )
@@ -254,6 +273,105 @@ private fun timeLeftCaption(watched: Boolean, timeLeft: AppTimeLeft?): String? =
     timeLeft is AppTimeLeft.UntilPause ->
         stringResource(R.string.app_status_time_left, formatDuration(timeLeft.millisRemaining))
     else -> null
+}
+
+/**
+ * One timing rule: what it is called, what it is set to, and a slider over the values it offers.
+ *
+ * The slider is positioned by *index* rather than by duration. The offered values are spaced
+ * unevenly on purpose — a minute apart at the bottom, a quarter-hour apart at the top — and
+ * mapping them linearly onto the track would make the useful end of every rule too small to
+ * hit. Every stop is the same width instead.
+ *
+ * @param onChange called once per adjustment, when the finger lifts, with the chosen duration.
+ */
+@Composable
+private fun TimingRuleCard(
+    rule: TimingRule,
+    policy: InterruptPolicy,
+    onChange: (Long) -> Unit,
+) {
+    val choices = rule.choicesIn(policy)
+    val storedIndex = rule.selectedIndexIn(policy)
+
+    // While a drag is in flight the slider follows the finger and the stored value stays put,
+    // so one adjustment is one write rather than one per pixel travelled. The override is
+    // dropped as soon as a new value arrives from storage — including one the rules adjusted
+    // on the way in, which is the case a plain "clear on release" would render incorrectly.
+    var draggedIndex by remember(rule) { mutableStateOf<Int?>(null) }
+    LaunchedEffect(storedIndex) { draggedIndex = null }
+    val shownIndex = (draggedIndex ?: storedIndex).coerceIn(choices.indices)
+
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(start = 18.dp, top = 14.dp, end = 18.dp, bottom = 6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(rule.titleRes),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = formatChoice(choices[shownIndex]),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = stringResource(rule.detailRes),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Slider(
+                value = shownIndex.toFloat(),
+                onValueChange = { draggedIndex = it.roundToInt() },
+                onValueChangeFinished = {
+                    draggedIndex?.let { onChange(choices[it.coerceIn(choices.indices)]) }
+                },
+                // A rule narrowed to a single choice has nothing to drag along. Only reachable
+                // from a policy some other build wrote, but a zero-width range renders as NaN.
+                valueRange = 0f..choices.lastIndex.coerceAtLeast(1).toFloat(),
+                steps = (choices.size - 2).coerceAtLeast(0),
+                enabled = choices.size > 1,
+            )
+        }
+    }
+}
+
+private val TimingRule.titleRes: Int
+    @StringRes get() = when (this) {
+        TimingRule.Trigger -> R.string.timing_trigger_title
+        TimingRule.Warning -> R.string.timing_warning_title
+        TimingRule.Block -> R.string.timing_block_title
+        TimingRule.ActiveWindow -> R.string.timing_active_window_title
+    }
+
+private val TimingRule.detailRes: Int
+    @StringRes get() = when (this) {
+        TimingRule.Trigger -> R.string.timing_trigger_detail
+        TimingRule.Warning -> R.string.timing_warning_detail
+        TimingRule.Block -> R.string.timing_block_detail
+        TimingRule.ActiveWindow -> R.string.timing_active_window_detail
+    }
+
+/**
+ * A configured duration, in the largest unit that keeps it a whole number — "45 sec", "10 min",
+ * "1 hr 30 min". Distinct from [formatDuration], which is for something still running down.
+ */
+@Composable
+private fun formatChoice(millis: Long): String {
+    val totalMinutes = millis / 60_000
+    return when {
+        totalMinutes == 0L -> stringResource(R.string.duration_seconds, millis / 1_000)
+        totalMinutes < 60 -> stringResource(R.string.duration_minutes, totalMinutes)
+        totalMinutes % 60 == 0L -> stringResource(R.string.duration_hours, totalMinutes / 60)
+        else -> stringResource(R.string.duration_hours_minutes, totalMinutes / 60, totalMinutes % 60)
+    }
 }
 
 /**

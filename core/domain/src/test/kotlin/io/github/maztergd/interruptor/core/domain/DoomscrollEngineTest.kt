@@ -268,6 +268,77 @@ class DoomscrollEngineTest {
         assertEquals(EnforcementState.Idle, engine.onTick())
     }
 
+    // -- retuning the rules mid-session --------------------------------------------------
+
+    @Test
+    fun `raising the trigger extends a session in progress rather than ending it`() {
+        engine.onSurface(instagram, showingReels = true)
+        scrollFor(9_000)
+
+        engine.updateSettings(
+            InterruptorSettings(
+                enabledAppIds = setOf(instagram.id, youtube.id),
+                policy = policy.copy(doomscrollThresholdMs = 20_000),
+            ),
+        )
+
+        // The 9s already accrued is kept — it was earned under the old rules and is still
+        // scrolling — but the countdown is no longer imminent.
+        val state = engine.onTick()
+        assertEquals(9_000, (state as EnforcementState.Monitoring).activeMs)
+    }
+
+    @Test
+    fun `lowering the trigger below what is already accrued blocks at once`() {
+        engine.onSurface(instagram, showingReels = true)
+        scrollFor(5_000)
+
+        engine.updateSettings(
+            InterruptorSettings(
+                enabledAppIds = setOf(instagram.id, youtube.id),
+                policy = policy.copy(doomscrollThresholdMs = 4_000, countdownMs = 1_000),
+            ),
+        )
+
+        assertTrue("expected an immediate block", engine.onTick() is EnforcementState.Blocked)
+    }
+
+    @Test
+    fun `shortening the block does not release one already running`() {
+        engine.onSurface(instagram, showingReels = true)
+        scrollFor(10_000)
+
+        // The obvious way to escape a block from the settings screen. The deadline was fixed
+        // when the block was imposed, so retuning the rule only affects the next one.
+        engine.updateSettings(
+            InterruptorSettings(
+                enabledAppIds = setOf(instagram.id, youtube.id),
+                policy = policy.copy(cooldownMs = 1_000),
+            ),
+        )
+
+        time.advance(2_000)
+        val state = engine.onTick()
+        assertEquals(3_000, (state as EnforcementState.Blocked).cooldownRemainingMs)
+    }
+
+    @Test
+    fun `a longer active-scrolling window credits time a shorter one would have dropped`() {
+        engine.updateSettings(
+            InterruptorSettings(
+                enabledAppIds = setOf(instagram.id, youtube.id),
+                policy = policy.copy(scrollIdleTimeoutMs = 8_000),
+            ),
+        )
+        engine.onSurface(instagram, showingReels = true)
+        engine.onScroll()
+
+        // A single swipe then a long video. Under the default 2s window only 2s would count.
+        time.advance(30_000)
+        val state = engine.onTick()
+        assertEquals(8_000, (state as EnforcementState.Monitoring).activeMs)
+    }
+
     @Test
     fun `clearing cooldowns unblocks every app`() {
         engine.onSurface(instagram, showingReels = true)

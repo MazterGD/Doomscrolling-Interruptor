@@ -22,6 +22,9 @@ package io.github.maztergd.interruptor.core.model
  * The constructor rejects incoherent combinations, which means an invalid policy cannot
  * be persisted, restored, or reach the engine.
  *
+ * Most of these are user-adjustable; [TimingRule] describes which, and what each may be set
+ * to. Change one through that rather than by hand, so the constraints below stay satisfied.
+ *
  * @param doomscrollThresholdMs how much *active* scrolling triggers the interrupt.
  * @param countdownMs how long the warning countdown runs immediately before the interrupt.
  * @param cooldownMs how long the short-video surface stays blocked afterwards.

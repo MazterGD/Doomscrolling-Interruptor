@@ -23,6 +23,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.maztergd.interruptor.core.model.AppTimeLeft
 import io.github.maztergd.interruptor.core.model.InterruptorSettings
+import io.github.maztergd.interruptor.core.model.TimingRule
 import io.github.maztergd.interruptor.data.SettingsRepository
 import io.github.maztergd.interruptor.service.EnforcementTimers
 import kotlinx.coroutines.delay
@@ -65,6 +66,22 @@ class HomeViewModel(private val repository: SettingsRepository) : ViewModel() {
 
     fun setAppEnabled(appId: String, enabled: Boolean) {
         viewModelScope.launch { repository.setAppEnabled(appId, enabled) }
+    }
+
+    /**
+     * Moves one timing rule.
+     *
+     * Nothing is echoed back to the screen from here: the write lands in the repository, and
+     * the screen redraws from the flow it was already collecting. The running service picks
+     * the change up the same way, so the rules on display and the rules being enforced come
+     * from one place.
+     */
+    fun setTimingRule(rule: TimingRule, valueMs: Long) {
+        viewModelScope.launch { repository.setTimingRule(rule, valueMs) }
+    }
+
+    fun resetTiming() {
+        viewModelScope.launch { repository.resetPolicy() }
     }
 
     companion object {
