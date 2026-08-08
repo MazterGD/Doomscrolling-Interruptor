@@ -91,6 +91,8 @@ class DoomscrollAccessibilityService : AccessibilityService() {
             timeSource = TimeSource { SystemClock.elapsedRealtime() },
             cooldownStore = cooldownStore,
         )
+        // The settings screen reads its countdowns straight off this engine.
+        EnforcementTimers.attach(engine)
 
         scope.launch {
             // Settings first: restoring a block needs the configured cooldown length to clamp
@@ -142,6 +144,7 @@ class DoomscrollAccessibilityService : AccessibilityService() {
 
     private fun teardown() {
         handler.removeCallbacksAndMessages(null)
+        if (::engine.isInitialized) EnforcementTimers.detach(engine)
         if (::overlays.isInitialized) overlays.hideAll()
         scope.cancel()
     }

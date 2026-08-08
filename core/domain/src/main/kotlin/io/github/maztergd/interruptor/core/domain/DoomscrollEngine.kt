@@ -15,6 +15,7 @@
  */
 package io.github.maztergd.interruptor.core.domain
 
+import io.github.maztergd.interruptor.core.model.AppTimeLeft
 import io.github.maztergd.interruptor.core.model.EnforcementState
 import io.github.maztergd.interruptor.core.model.InterruptPolicy
 import io.github.maztergd.interruptor.core.model.InterruptorSettings
@@ -156,6 +157,25 @@ public class DoomscrollEngine(
     }
 
     /**
+     * What every watched app is counting down to, keyed by app id.
+     *
+     * Exists so the settings screen can show live timers without owning a second copy of the
+     * rules: the figures it displays and the moment the block actually lands are derived from
+     * the same session state, so they cannot disagree.
+     *
+     * Apps the user has switched off are absent rather than reported as untouched — nothing is
+     * being timed for them, which is a different thing from having the full allowance left.
+     *
+     * Time is settled before reporting, so a figure read mid-session includes the seconds since
+     * the last tick instead of lagging behind what is on screen.
+     */
+    public fun timeLeftByApp(): Map<String, AppTimeLeft> = synchronized(lock) {
+        val now = timeSource.elapsedRealtimeMs()
+        accrue(now)
+        settings.enabledAppIds.associateWith { appId -> timeLeftFor(appId, now) }
+    }
+
+    /**
      * Ends every block. Exposed for the settings screen's "reset" affordance and for tests —
      * it is deliberately *not* reachable from the block overlay, which has no exit path.
      */
@@ -257,6 +277,33 @@ public class DoomscrollEngine(
         }
 
         return EnforcementState.Monitoring(appId, session.activeMs)
+    }
+
+    /**
+     * Whichever countdown currently applies to [appId].
+     *
+     * The allowance is floored at zero: a session may sit at or past the threshold between the
+     * accrual that crossed it and the tick that turns it into a block, and a negative duration
+     * would be nonsense on screen.
+     */
+    private fun timeLeftFor(appId: String, now: Long): AppTimeLeft {
+        val cooldown = remainingCooldown(appId, now)
+        if (cooldown > 0) return AppTimeLeft.UntilUnlock(cooldown)
+        val remaining = policy.doomscrollThresholdMs - accruedFor(appId, now)
+        return AppTimeLeft.UntilPause(remaining.coerceAtLeast(0))
+    }
+
+    /**
+     * Time [appId] has accrued toward its threshold.
+     *
+     * A session whose grace window has closed reports zero rather than its stale total. It is
+     * already spent — the next entry restarts it — and showing progress the user no longer has
+     * would be worse than showing none.
+     */
+    private fun accruedFor(appId: String, now: Long): Long {
+        val session = sessions[appId] ?: return 0
+        val leftAt = session.leftReelsAtMs ?: return session.activeMs
+        return if (now - leftAt > policy.sessionGraceMs) 0 else session.activeMs
     }
 
     /** Remaining block time for [appId], forgetting the record once it has lapsed. */

@@ -26,6 +26,12 @@
     <string name="open_accessibility_settings">Open accessibility settings</string>
 
     <string name="apps_section">Apps to watch</string>
+
+    <!-- Per-app countdown, shown under each app's name -->
+    <string name="app_status_time_left">%1$s of scrolling left</string>
+    <string name="app_status_paused">Paused · %1$s left</string>
+    <string name="app_status_not_watched">Not watched</string>
+
     <string name="rules_section">How it works</string>
 
     <string name="rule_threshold">Scroll a short-video feed for %1$d minutes and it pauses.</string>

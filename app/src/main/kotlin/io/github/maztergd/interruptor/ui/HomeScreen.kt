@@ -48,13 +48,16 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import io.github.maztergd.interruptor.R
+import io.github.maztergd.interruptor.core.model.AppTimeLeft
 import io.github.maztergd.interruptor.core.model.TargetApp
 import io.github.maztergd.interruptor.core.model.TargetAppCatalog
+import java.util.Locale
 
 @Composable
 fun HomeScreen(viewModel: HomeViewModel) {
     val context = LocalContext.current
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val timeLeft by viewModel.timeLeft.collectAsStateWithLifecycle()
 
     var serviceEnabled by remember { mutableStateOf(AccessibilityPermission.isServiceEnabled(context)) }
     // The grant happens in system Settings, so the only reliable moment to re-check is when
@@ -100,7 +103,8 @@ fun HomeScreen(viewModel: HomeViewModel) {
         items(TargetAppCatalog.all, key = TargetApp::id) { app ->
             AppToggleRow(
                 app = app,
-                enabled = app.id in settings.enabledAppIds,
+                watched = app.id in settings.enabledAppIds,
+                timeLeft = timeLeft[app.id],
                 onToggle = { viewModel.setAppEnabled(app.id, it) },
             )
         }
@@ -185,8 +189,19 @@ private fun ServiceStatusCard(enabled: Boolean, onOpenSettings: () -> Unit) {
     }
 }
 
+/**
+ * One app, its switch, and what it is counting down to.
+ *
+ * @param timeLeft the app's live countdown, or `null` when nothing is timing it — the service
+ *   is off, or the app is not watched.
+ */
 @Composable
-private fun AppToggleRow(app: TargetApp, enabled: Boolean, onToggle: (Boolean) -> Unit) {
+private fun AppToggleRow(
+    app: TargetApp,
+    watched: Boolean,
+    timeLeft: AppTimeLeft?,
+    onToggle: (Boolean) -> Unit,
+) {
     Card(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -198,14 +213,58 @@ private fun AppToggleRow(app: TargetApp, enabled: Boolean, onToggle: (Boolean) -
                 .padding(horizontal = 18.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = app.displayName,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.weight(1f),
-            )
-            Switch(checked = enabled, onCheckedChange = onToggle)
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = app.displayName,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                val caption = timeLeftCaption(watched, timeLeft)
+                if (caption != null) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = caption,
+                        style = MaterialTheme.typography.bodySmall,
+                        // A paused app is the one thing on this screen the user may be waiting
+                        // on, so it is the only row that earns the accent colour.
+                        color = if (timeLeft is AppTimeLeft.UntilUnlock) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+            }
+            Switch(checked = watched, onCheckedChange = onToggle)
         }
     }
+}
+
+/**
+ * The line under an app's name, or `null` when there is nothing truthful to put there.
+ *
+ * A watched app with no countdown means the accessibility service is not running, and no
+ * number belongs on the row in that case: the status card above already explains that nothing
+ * is being enforced, and a frozen timer would suggest otherwise.
+ */
+@Composable
+private fun timeLeftCaption(watched: Boolean, timeLeft: AppTimeLeft?): String? = when {
+    !watched -> stringResource(R.string.app_status_not_watched)
+    timeLeft is AppTimeLeft.UntilUnlock ->
+        stringResource(R.string.app_status_paused, formatDuration(timeLeft.millisRemaining))
+    timeLeft is AppTimeLeft.UntilPause ->
+        stringResource(R.string.app_status_time_left, formatDuration(timeLeft.millisRemaining))
+    else -> null
+}
+
+/**
+ * `m:ss`.
+ *
+ * Rounded up, so a countdown reads 0:00 only once it has genuinely run out rather than for the
+ * whole of its final second.
+ */
+private fun formatDuration(millisRemaining: Long): String {
+    val seconds = (millisRemaining.coerceAtLeast(0) + 999) / 1_000
+    return String.format(Locale.getDefault(), "%d:%02d", seconds / 60, seconds % 60)
 }
 
 @Composable

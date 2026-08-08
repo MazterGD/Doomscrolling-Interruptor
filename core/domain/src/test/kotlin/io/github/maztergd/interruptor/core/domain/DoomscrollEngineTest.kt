@@ -1,5 +1,6 @@
 package io.github.maztergd.interruptor.core.domain
 
+import io.github.maztergd.interruptor.core.model.AppTimeLeft
 import io.github.maztergd.interruptor.core.model.EnforcementState
 import io.github.maztergd.interruptor.core.model.InterruptPolicy
 import io.github.maztergd.interruptor.core.model.InterruptorSettings
@@ -285,6 +286,81 @@ class DoomscrollEngineTest {
         val active = engine.activeCooldowns()
         assertEquals(setOf(instagram.id), active.keys)
         assertTrue(active.getValue(instagram.id) in 1..policy.cooldownMs)
+    }
+
+    // -- time left, as shown on the settings screen -------------------------------------
+
+    @Test
+    fun `an untouched app has its whole allowance left`() {
+        assertEquals(
+            AppTimeLeft.UntilPause(policy.doomscrollThresholdMs),
+            engine.timeLeftByApp()[instagram.id],
+        )
+    }
+
+    @Test
+    fun `the allowance shrinks as a session accrues`() {
+        engine.onSurface(instagram, showingReels = true)
+        scrollFor(4_000)
+
+        assertEquals(AppTimeLeft.UntilPause(6_000), engine.timeLeftByApp()[instagram.id])
+    }
+
+    @Test
+    fun `a blocked app counts down to unlocking instead`() {
+        engine.onSurface(instagram, showingReels = true)
+        scrollFor(10_000)
+        time.advance(2_000)
+
+        assertEquals(AppTimeLeft.UntilUnlock(3_000), engine.timeLeftByApp()[instagram.id])
+    }
+
+    @Test
+    fun `progress reported during the grace window matches what is still accrued`() {
+        engine.onSurface(instagram, showingReels = true)
+        scrollFor(4_000)
+
+        engine.onSurface(instagram, showingReels = false)
+        time.advance(policy.sessionGraceMs - 500)
+
+        assertEquals(AppTimeLeft.UntilPause(6_000), engine.timeLeftByApp()[instagram.id])
+    }
+
+    @Test
+    fun `a session past its grace window is reported as spent, not as progress`() {
+        engine.onSurface(instagram, showingReels = true)
+        scrollFor(4_000)
+
+        engine.onSurface(instagram, showingReels = false)
+        time.advance(policy.sessionGraceMs + 1)
+
+        // Returning now would restart the session, so the screen must promise a full allowance.
+        assertEquals(
+            AppTimeLeft.UntilPause(policy.doomscrollThresholdMs),
+            engine.timeLeftByApp()[instagram.id],
+        )
+    }
+
+    @Test
+    fun `only watched apps have a time left at all`() {
+        engine.updateSettings(
+            InterruptorSettings(enabledAppIds = setOf(youtube.id), policy = policy),
+        )
+
+        assertEquals(setOf(youtube.id), engine.timeLeftByApp().keys)
+    }
+
+    @Test
+    fun `reading the time left does not itself impose a block`() {
+        engine.onSurface(instagram, showingReels = true)
+        engine.onScroll()
+        // Long enough to cross the threshold had the whole gap counted; only the active window
+        // may, and reading must not stand in for the tick that decides.
+        time.advance(60_000)
+
+        val left = engine.timeLeftByApp().getValue(instagram.id)
+        assertTrue("expected an allowance, was $left", left is AppTimeLeft.UntilPause)
+        assertEquals(0, engine.cooldownRemainingFor(instagram.id))
     }
 
     // -- persistence port --------------------------------------------------------------
